@@ -13,7 +13,7 @@ COPY poetry.lock* ./
 RUN poetry install --only main --no-root
 
 COPY ./app ./app
-COPY .env .env
+
 EXPOSE 8000
 
 CMD ["poetry", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

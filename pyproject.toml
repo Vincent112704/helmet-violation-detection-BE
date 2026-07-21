@@ -2,13 +2,17 @@
 name = "helmet-violation-detection-be"
 version = "0.1.0"
 description = "Boilerplate FastAPI app"
-authors = ["Your Name <you@example.com>"]
+authors = ["Vincent Paul Bacalso tian2x04@gmail.com"]
 package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.12"
 fastapi = "^0.111.0"
 uvicorn = {extras = ["standard"], version = "^0.30.1"}
+sqlalchemy = "^2.0.51"
+psycopg = {extras = ["binary"], version = "^3.3.4"}
+alembic = "^1.18.5"
+pydantic-settings = "^2.14.2"
 
 [build-system]
 requires = ["poetry-core"]
