@@ -9,3 +9,6 @@ supabase: Client = create_client(
     supabase_url=SUPABASE_URL,
     supabase_key=SUPABASE_SECRET_KEY
 )
+
+def get_current_user(access_token):
+    return supabase.auth.get_user(access_token)
