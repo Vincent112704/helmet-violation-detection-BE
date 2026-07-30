@@ -15,7 +15,4 @@ def aggregate_table_data() -> MetricResponse:
           - Violation location across Dumaguete (Histogram)
 
     '''
-    
-    
-
-    return {"message": "hello"}
+    return get_tickets_table(30)

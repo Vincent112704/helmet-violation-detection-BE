@@ -5,16 +5,9 @@ class TrendPoint(BaseModel):
     happen: date
     violations: int
 
-class TrendAnalysis(BaseModel):
-    trend: list[TrendPoint]
-
 class HistogramPoint(BaseModel):
     location: str
     violations: int
-
-class LocationAnalysis(BaseModel):
-    location_trend: list[HistogramPoint]
-
 
 
 class MetricResponse(BaseModel):
@@ -23,5 +16,6 @@ class MetricResponse(BaseModel):
     total_violations: int
     tickets_issued: int
     tickets_pending: int
-    trend_analysis: list[TrendAnalysis]
-    location_analysis: list[LocationAnalysis]
+    tickets_appealed: int
+    trend_analysis: list[TrendPoint]
+    location_analysis: list[HistogramPoint]

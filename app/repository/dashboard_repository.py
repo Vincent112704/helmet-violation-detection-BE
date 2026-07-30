@@ -3,10 +3,8 @@ from app.models.tickets import Ticket
 from app.models.responses import MetricResponse
 
 
-def get_tickets_table() -> list[Ticket]:
-    pass
+def get_tickets_table(days_back) -> MetricResponse:
+    res = supabase.rpc("dashboard_metrics", {"days_back": days_back}).execute()
+    return MetricResponse.model_validate(res.data)
 
 
-#TODO:
-#  - update query should be db-side not server-side
-#  - add appropriate sql files
