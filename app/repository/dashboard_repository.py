@@ -1,6 +1,12 @@
 from app.repository.db import supabase
 from app.models.tickets import Ticket
+from app.models.responses import MetricResponse
+
 
 def get_tickets_table() -> list[Ticket]:
-    response = supabase.table('ticket').select('*').execute()
-    return [ Ticket.model_validate(row) for row in response.data]
+    pass
+
+
+#TODO:
+#  - update query should be db-side not server-side
+#  - add appropriate sql files

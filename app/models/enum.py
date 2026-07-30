@@ -1,6 +1,7 @@
 from enum import Enum
 
 
+#Database enum models
 
 class UserRole(str, Enum):
     OFFICER = "officer"

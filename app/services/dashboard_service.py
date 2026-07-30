@@ -2,6 +2,7 @@ from app.repository.dashboard_repository import get_tickets_table
 from app.models.responses import MetricResponse
 
 
+
 def aggregate_table_data() -> MetricResponse:
     '''
         metrics to measure:
@@ -14,7 +15,7 @@ def aggregate_table_data() -> MetricResponse:
           - Violation location across Dumaguete (Histogram)
 
     '''
-    tickets = get_tickets_table()
+    
     
 
     return {"message": "hello"}
