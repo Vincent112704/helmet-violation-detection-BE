@@ -1,3 +1,4 @@
+from app.models.tickets import Ticket
 from pydantic import BaseModel
 from datetime import date
 from app.models.enum import TicketStatus
@@ -19,3 +20,13 @@ class MetricResponse(BaseModel):
     tickets_appealed: int
     trend_analysis: list[TrendPoint]
     location_analysis: list[HistogramPoint]
+
+class PaginatedTickets(BaseModel):
+    items: list[Ticket]
+    page: int
+    page_size: int
+
+
+class TicketTableResponse(BaseModel):
+    data: PaginatedTickets
+    count: int
