@@ -1,12 +1,23 @@
 from fastapi import FastAPI, Depends
+from contextlib import asynccontextmanager
 from app.api.dashboard import router as dashboard_router
 from app.api.table import router as table_router
 from app.api.upload import router as upload_router
 from app.repository.db import supabase
 from app.dependencies.auth import get_user
+from ultralytics import YOLO
+import logging
 
+logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="FastAPI Boilerplate", version="0.1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    app.state.model = YOLO("model/best.pt")
+    logging.info("Model loaded successfully.")
+    yield
+
+app = FastAPI(title="FastAPI Boilerplate", version="0.1.0", lifespan=lifespan)
 
 
 

@@ -13,6 +13,7 @@ COPY poetry.lock* ./
 RUN poetry install --only main --no-root
 
 COPY ./app ./app
+COPY ./model ./model
 
 EXPOSE 8000
 
