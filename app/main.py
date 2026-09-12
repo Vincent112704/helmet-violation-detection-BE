@@ -31,8 +31,7 @@ app.include_router(table_router, prefix='/api/table') #Removed auth for testing
 app.include_router(upload_router, prefix='/api/upload')
 
 #TODO:
-#  - Add API logic
-#  - Add Service Logic
-#  - Add repo logic
-#  
+#  - do upload logic
+#  - wire up supabase bucket
+#  - integrate frontend with backend
 

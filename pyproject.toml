@@ -15,6 +15,10 @@ alembic = "^1.18.5"
 pydantic-settings = "^2.14.2"
 supabase = "^2.31.0"
 asyncpg = "^0.31.0"
+torch = "^2.5.0"
+torchvision = "^0.20.0"
+ultralytics = "^8.4.149"
+opencv-python-headless = "^5.0.0.93"
 
 [build-system]
 requires = ["poetry-core"]
