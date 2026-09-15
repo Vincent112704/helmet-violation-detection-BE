@@ -1,16 +1,44 @@
-from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks
 from app.dependencies.auth import get_user
+from app.services.upload_service import process_uploaded_file
+from app.repository.upload_repository import save_to_bucket, save_to_database
+
 
 router = APIRouter()
 
-# @router.get('/upload-test')
-# async def test(user=Depends(get_user)):
-#     return {'message': 'upload test success'}
+# # @router.post('/upload-test')
+# async def test(video_file: UploadFile = File(...)):
+#     '''
+#         object upload test to supabase bucket and update url to database
+#         ticket_id is hardcoded for testing purposes
+#         ticket_id = 1663ad13-0681-4ae4-8784-3b34aa085b55
+#     '''
+
+#     content = await video_file.read()
+#     file_name = video_file.filename
+#     try: 
+#         length_mb = len(content) / (1024 * 1024)
+#         if length_mb > 10:
+#             raise ValueError("File size exceeds 10 MB limit.")
+#         # url = await save_to_bucket(content, file_name)
+#         # await save_to_database(url, "1663ad13-0681-4ae4-8784-3b34aa085b55")
+#         return {"message": "File uploaded and database updated successfully."}
+#     except Exception as e:
+#         return {"error": str(e)}
+    
 
 @router.post('/')
-async def upload_file(video_file: UploadFile = File(...)): #remove auth temporarily for testing
+async def upload_file(background_tasks: BackgroundTasks, video_file: UploadFile = File(...)): #remove auth temporarily for testing
     content = await video_file.read()
-
-    print(len(content))
-    print(video_file.filename)
-    return {'message': 'upload file success'}
+    file_name = video_file.filename
+    try: 
+        length_mb = len(content) / (1024 * 1024)
+        if length_mb > 10:
+            raise ValueError("File size exceeds 10 MB limit.")
+        
+        background_tasks.add_task(process_uploaded_file, content, file_name)
+        return {"message": "File queued for processing."}
+    except Exception as e:
+        return {"error": str(e)}
+    
+    
