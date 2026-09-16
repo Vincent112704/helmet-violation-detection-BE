@@ -36,7 +36,7 @@ async def save_to_bucket(content: bytes, file_name: str) -> str:
 async def save_to_database(file_url: str, ticket_id: UUID) -> None:
     try:
         response = supabase.table("ticket").update({"url": file_url}).eq("ticket_id", str(ticket_id)).execute()
-        if not response: #works but edit this there is syntax error supabase success but api returns 'APIResponse' object has no attribute 'status_code'
+        if not response: 
             logging.error(f"Error updating database for ticket_id {ticket_id}: {response.data}")
             raise Exception(f"Database update failed for ticket_id {ticket_id}")
         return
