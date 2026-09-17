@@ -19,7 +19,7 @@ still thinking about how to handle the exception (retry logic, how client knows 
 '''
 
 
-async def process_uploaded_file(content: bytes, file_name: str, model):
+async def yolo_detection(content: bytes, file_name: str, model):
     detections = []
     logging.info(f"Processing file: {file_name}")
     with tempfile.NamedTemporaryFile(suffix=".mp4") as temp_file:
