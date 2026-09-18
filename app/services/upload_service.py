@@ -24,8 +24,7 @@ still thinking about how to handle the exception (retry logic, how client knows 
 
 
 async def yolo_detection(content: bytes, file_name: str, model):
-    detections = []
-
+    
     logging.info(f"Processing file: {file_name}")
 
     with tempfile.NamedTemporaryFile(suffix=".mp4") as temp_file:
@@ -50,8 +49,6 @@ async def yolo_detection(content: bytes, file_name: str, model):
 
                 if frame_counter % FRAME_INTERVAL == 0:
                     results = model(frame)
-
-                    detections.append(results)
                     last_results = results
 
                 # Draw the latest detections
@@ -61,25 +58,57 @@ async def yolo_detection(content: bytes, file_name: str, model):
                         last_results,
                         model,
                     )
+                #associate_ticket_with_violation(last_results, model)
 
                 out.write(frame)
 
                 frame_counter += 1
 
         finally:
+            #should add logic here to save the annotated video to the bucket and update the url in the database
             cap.release()
             out.release()
 
-    logging.info(f"Detections: {detections}")
 
-    return detections
+    
 
 
-async def associate_ticket_with_violation(ticket_id: str, violation_type: str):
-    # Implement the logic to associate the ticket with the detected violation
-    pass
+async def associate_ticket_with_violation(results, model):
+    result = results[0]
+    tracked_plates = set()  # To keep track of already processed plate numbers
 
-async def perform_ocr_on_video(video_path: str):
+    helmets = get_boxes_by_class(result, model, "Helmet")
+    persons = get_boxes_by_class(result, model, "Person")
+    motorcycles = get_boxes_by_class(result, model, "Motorcycle")
+    plates = get_boxes_by_class(result, model, "Plate_number")
+
+    for person in persons:
+        motorcycle = find_associated_motorcycle(person, motorcycles)
+
+        if motorcycle is None:
+            continue
+
+        helmet = find_associated_helmet(person, helmets)
+
+        if helmet is None:
+            # Violation detected: Person on motorcycle without helmet
+            # Find associated plate number for the motorcycle
+            plate_number = find_associated_plate(motorcycle, plates)
+            if plate_number is None:
+                logging.info("No plate number detected for the motorcycle.")
+                #Create violation record with plate number as None
+            else:
+                # call ocr model and pass plate number bounding box to extract the plate number
+                # plate_number_text = await perform_ocr_on_video(plate_number)
+                # if plate_number_text in tracked_plates:
+                #     continue  # Skip if this plate number has already been processed
+                # tracked_plates.add(plate_number)
+                #Create violation record with plate number as plate_number_text
+                pass
+
+         
+            
+async def perform_ocr_on_video(plate_box):
     # Implement the logic to perform OCR on the video and extract plate number when yolo association logic detects a violation
     pass
 
@@ -90,6 +119,15 @@ async def save_violation_to_supabase(ticket_id: str, violation_type: str, plate_
     pass
 
 def create_video_writer(output_path: str, cap: cv2.VideoCapture):
+    '''
+    Creates a VideoWriter object to write the output video with the same properties as the input video.
+    Args:
+        output_path: The path where the output video will be saved.
+        cap: The VideoCapture object for the input video.
+    
+    Returns:
+        A VideoWriter object to write the output frame.
+    '''
     fps = cap.get(cv2.CAP_PROP_FPS)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -105,7 +143,21 @@ def create_video_writer(output_path: str, cap: cv2.VideoCapture):
 
 
 def draw_detections(frame, results, model):
+    '''
+    Draws bounding boxes and labels on the frame based on YOLO detection results.
+    Args:
+        frame: The video frame to draw on.
+        results: The YOLO detection results.
+        model: The YOLO model used for detection (to get class names).
+    
+    Returns:
+        The frame with drawn bounding boxes and labels.
+    
+    '''
     result = results[0]
+    print("--------------------")
+    print(f"{result}.")
+    print("--------------------")
 
     for box in result.boxes:
         x1, y1, x2, y2 = map(int, box.xyxy[0])
@@ -134,3 +186,78 @@ def draw_detections(frame, results, model):
 
     return frame
 
+def get_boxes_by_class(result, model, class_name):
+    boxes = []
+
+    for box in result.boxes:
+        class_id = int(box.cls[0])
+
+        if model.names[class_id] == class_name:
+            boxes.append(box.xyxy[0].tolist())
+
+    return boxes
+
+def find_associated_motorcycle(person_box, motorcycles):
+    '''
+    Finds the associated motorcycle for a given person box based on bounding box overlap.
+    Using the formula: 
+        person_motor_overlap = area(Person ∩ Motorcycle) / area(Person) 
+        if person_motor_overlap > THRESHOLD, then we can say the person is associated with the motorcycle
+
+    Args:
+        person_box: The bounding box of the person (x1, y1, x2, y2).
+        motorcycles: A list of bounding boxes for detected motorcycles.
+
+    Returns:
+        The bounding box of the associated motorcycle if found, otherwise None.
+
+    '''
+    THRESHOLD = 0.5  # Define a threshold for association
+    px1, py1, px2, py2 = person_box
+    person_box_area = (px2 - px1) * (py2 - py1) # Get the area of person box
+
+    for motorcycle_box in motorcycles:
+        mx1, my1, mx2, my2 = motorcycle_box
+        # calculate the intersection area of person_box_area and motorcycle_box_area
+        # Intersection rectangle
+        ix1 = max(px1, mx1) # The leftmost x-coordinate of the intersection rectangle
+        iy1 = max(py1, my1) # The topmost y-coordinate of the intersection rectangle
+        ix2 = min(px2, mx2) # The rightmost x-coordinate of the intersection rectangle
+        iy2 = min(py2, my2) # The bottommost y-coordinate of the intersection rectangle
+
+        if ix1 >= ix2 or iy1 >= iy2:
+            continue  # No intersection
+
+
+        intersection_area = (ix2 - ix1) * (iy2 - iy1)
+
+        # Calculate the overlap ratio
+        overlap = intersection_area / person_box_area
+
+        if overlap > THRESHOLD:
+            return motorcycle_box  # Return the associated motorcycle box
+
+    return None
+        
+
+def find_associated_helmet(person_box, helmets):
+    px1, py1, px2, py2 = person_box
+
+    for helmet_box in helmets:
+        hx1, hy1, hx2, hy2 = helmet_box
+
+        if hx1 >= px1 and hy1 >= py1 and hx2 <= px2 and hy2 <= py2:
+            return helmet_box  
+
+    return None
+
+def find_associated_plate(motorcycle_box, plates):
+    mx1, my1, mx2, my2 = motorcycle_box
+
+    for plate_box in plates:
+        px1, py1, px2, py2 = plate_box
+
+        if px1 >= mx1 and py1 >= my1 and px2 <= mx2 and py2 <= my2:
+            return plate_box
+
+    return None
