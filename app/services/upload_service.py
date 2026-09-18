@@ -26,6 +26,7 @@ still thinking about how to handle the exception (retry logic, how client knows 
 async def yolo_detection(content: bytes, file_name: str, model):
     
     logging.info(f"Processing file: {file_name}")
+    video_path = save_to_bucket(content, file_name)
 
     with tempfile.NamedTemporaryFile(suffix=".mp4") as temp_file:
         temp_file.write(content)
@@ -58,7 +59,8 @@ async def yolo_detection(content: bytes, file_name: str, model):
                         last_results,
                         model,
                     )
-                #associate_ticket_with_violation(last_results, model)
+
+                await associate_ticket_with_violation(last_results, model, video_path)
 
                 out.write(frame)
 
@@ -73,7 +75,7 @@ async def yolo_detection(content: bytes, file_name: str, model):
     
 
 
-async def associate_ticket_with_violation(results, model):
+async def associate_ticket_with_violation(results, model, video_path: str):
     result = results[0]
     tracked_plates = set()  # To keep track of already processed plate numbers
 
@@ -96,7 +98,6 @@ async def associate_ticket_with_violation(results, model):
             plate_number = find_associated_plate(motorcycle, plates)
             if plate_number is None:
                 logging.info("No plate number detected for the motorcycle.")
-                #Create violation record with plate number as None
             else:
                 # call ocr model and pass plate number bounding box to extract the plate number
                 # plate_number_text = await perform_ocr_on_video(plate_number)
@@ -105,6 +106,8 @@ async def associate_ticket_with_violation(results, model):
                 # tracked_plates.add(plate_number)
                 #Create violation record with plate number as plate_number_text
                 pass
+            
+    #after person loop ends insert all plate number in set
 
          
             
