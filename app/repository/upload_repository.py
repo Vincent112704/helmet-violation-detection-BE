@@ -43,3 +43,7 @@ async def save_to_database(file_url: str, ticket_id: UUID) -> None:
     except Exception as e:
         logging.error(f"Error updating database for ticket_id {ticket_id}: {e}")
         raise
+
+
+async def create_ticket(officer, plate_number, location, video_url):
+    pass
