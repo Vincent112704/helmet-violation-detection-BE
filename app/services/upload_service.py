@@ -1,6 +1,4 @@
 from app.repository.upload_repository import save_to_bucket, save_to_database
-from ultralytics import YOLO
-from app.repository.upload_repository import save_to_bucket, save_to_database
 import cv2
 import tempfile
 import logging
@@ -244,6 +242,19 @@ def find_associated_motorcycle(person_box, motorcycles):
         
 
 def find_associated_helmet(person_box, helmets):
+    '''
+    Used containment logic to associate person with helmet
+    Basically if bounding box of helmet is completely inside person then helmet belongs to person
+
+    Args: 
+        person_box: bounding box of person
+        helmets: a list of helmet bounding boxes
+    
+    Returns:
+        helmet_box: bounding box of helmet
+        None: No association
+    
+    '''
     px1, py1, px2, py2 = person_box
 
     for helmet_box in helmets:
@@ -255,6 +266,18 @@ def find_associated_helmet(person_box, helmets):
     return None
 
 def find_associated_plate(motorcycle_box, plates):
+    '''
+    Used containment logic to associate motorcycle with plate number
+    Basically if bounding box of plate number is completely inside motorcycle then plate number belongs to motorcycle
+
+    Args:
+        motorcycle_box: bounding box of motorcycle
+        plates: list of plate number bounding box
+
+    Returns:
+        plate_box: bounding box of plate number
+        None: No association
+    '''
     mx1, my1, mx2, my2 = motorcycle_box
 
     for plate_box in plates:
