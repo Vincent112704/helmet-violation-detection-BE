@@ -6,6 +6,9 @@ from app.api.upload import router as upload_router
 from app.repository.db import supabase
 from app.dependencies.auth import get_user
 from ultralytics import YOLO
+from fastapi.middleware.cors import CORSMiddleware
+
+
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -18,6 +21,13 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="FastAPI Boilerplate", version="0.1.0", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Replace with your frontend domain or ["*"] for dev
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 
