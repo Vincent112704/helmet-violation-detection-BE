@@ -1,4 +1,4 @@
-from app.repository.upload_repository import save_to_bucket, save_to_database
+from app.repository.upload_repository import save_to_bucket, save_to_database, create_ticket
 import cv2
 import tempfile
 import logging
@@ -21,7 +21,7 @@ still thinking about how to handle the exception (retry logic, how client knows 
 '''
 
 
-async def yolo_detection(content: bytes, file_name: str, model):
+async def yolo_detection(content: bytes, file_name: str, model, location: str):
     
     logging.info(f"Processing file: {file_name}")
     video_path = save_to_bucket(content, file_name)
@@ -152,7 +152,7 @@ def draw_detections(frame, results, model):
         model: The YOLO model used for detection (to get class names).
     
     Returns:
-        The frame with drawn bounding boxes and labels.
+        frame: The frame with drawn bounding boxes and labels.
     
     '''
     result = results[0]
@@ -188,6 +188,17 @@ def draw_detections(frame, results, model):
     return frame
 
 def get_boxes_by_class(result, model, class_name):
+    '''
+    Returns a list of bounding boxes specified by the arguments passed
+
+    Args:
+        result: Yolo model's last frame results
+        model: YOLO model to extract the class_id
+        class_name: Class name of a specific class
+
+    returns:
+        boxes: a list of bounding boxes of a specific class
+    '''
     boxes = []
 
     for box in result.boxes:
@@ -210,7 +221,8 @@ def find_associated_motorcycle(person_box, motorcycles):
         motorcycles: A list of bounding boxes for detected motorcycles.
 
     Returns:
-        The bounding box of the associated motorcycle if found, otherwise None.
+        motorcycle_box: The bounding box of the associated motorcycle if found 
+        None: No association
 
     '''
     THRESHOLD = 0.5  # Define a threshold for association

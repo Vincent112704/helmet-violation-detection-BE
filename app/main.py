@@ -19,6 +19,7 @@ async def lifespan(app: FastAPI):
     app.state.model = YOLO("model/best.pt")
     logging.info("Model loaded successfully.")
     yield
+    logging.info("App turning off.")
 
 app = FastAPI(title="FastAPI Boilerplate", version="0.1.0", lifespan=lifespan)
 app.add_middleware(

@@ -45,5 +45,28 @@ async def save_to_database(file_url: str, ticket_id: UUID) -> None:
         raise
 
 
-async def create_ticket(officer, plate_number, location, video_url):
-    pass
+
+async def create_ticket(officer: UUID, plate_number: str, location: str, video_url: str):
+    """
+    Insert a new ticket record into the `tickets` table.
+    Returns the created row on success, raises an exception on failure.
+    """
+    try:
+        response = (
+            supabase.table("ticket")
+            .insert({
+                "officer": str(officer),
+                "plate_number": plate_number,
+                "location": location,
+                "url": video_url,
+            })
+            .execute()
+        )
+    except Exception as e:
+        # supabase-py raises APIError (or similar) on request failure
+        raise RuntimeError(f"Failed to create ticket: {e}") from e
+
+    if not response.data:
+        raise RuntimeError("Ticket creation returned no data")
+
+    return response.data[0]
