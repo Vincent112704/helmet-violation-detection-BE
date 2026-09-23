@@ -38,16 +38,23 @@ def get_storage_url(file_name: str) -> str:
 
     return url
 
-async def save_to_database(file_url: str, ticket_id: UUID) -> None:
-    try:
-        response = supabase.table("ticket").update({"url": file_url}).eq("ticket_id", str(ticket_id)).execute()
-        if not response: 
-            logging.error(f"Error updating database for ticket_id {ticket_id}: {response.data}")
-            raise Exception(f"Database update failed for ticket_id {ticket_id}")
-        return
-    except Exception as e:
-        logging.error(f"Error updating database for ticket_id {ticket_id}: {e}")
-        raise
+'''
+    Commented out save_to_database() because it is no longer needed
+    Initially I created it so that I can update the ticket table's url column after video url is already available 
+    but I learned that you can just pre-construct the url and use the same url to save the video
+    basically url is now created before video has been uploaded
+'''
+
+# async def save_to_database(file_url: str, ticket_id: UUID) -> None:
+#     try:
+#         response = supabase.table("ticket").update({"url": file_url}).eq("ticket_id", str(ticket_id)).execute()
+#         if not response: 
+#             logging.error(f"Error updating database for ticket_id {ticket_id}: {response.data}")
+#             raise Exception(f"Database update failed for ticket_id {ticket_id}")
+#         return
+#     except Exception as e:
+#         logging.error(f"Error updating database for ticket_id {ticket_id}: {e}")
+#         raise
 
 
 

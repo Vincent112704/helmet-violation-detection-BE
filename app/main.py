@@ -19,7 +19,7 @@ async def lifespan(app: FastAPI):
     app.state.model = YOLO("model/best.pt")
     logging.info("Model loaded successfully.")
     yield
-    logging.info("App turning off.")
+
 
 app = FastAPI(title="FastAPI Boilerplate", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
@@ -32,28 +32,11 @@ app.add_middleware(
 
 
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
-
-@app.get("/db_health")
-def db_check():
-    response = (
-        supabase.table("personnel")
-        .select("*")
-        .execute()
-    )
-
-    return response.data
-
 # app.include_router(dashboard_router, prefix='/api/dashboard', dependencies=[Depends(get_user)])
 app.include_router(dashboard_router, prefix='/api/dashboard') #Removed auth for testing
 # app.include_router(table_router, prefix='/api/table', dependencies=[Depends(get_user)])
 app.include_router(table_router, prefix='/api/table') #Removed auth for testing
 app.include_router(upload_router, prefix='/api/upload')
 
-#TODO:
-#  - do upload logic
-#  - wire up supabase bucket
-#  - integrate frontend with backend
+
 

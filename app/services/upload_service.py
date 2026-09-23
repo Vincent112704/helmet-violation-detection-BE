@@ -1,7 +1,9 @@
-from app.repository.upload_repository import save_to_bucket, save_to_database, create_ticket, get_storage_url
+from app.repository.upload_repository import save_to_bucket, create_ticket, get_storage_url
 import cv2
 import tempfile
 import logging
+from uuid import UUID
+import os
 
 logging.basicConfig(level=logging.INFO)
 
@@ -10,18 +12,16 @@ logging.basicConfig(level=logging.INFO)
 FRAME_INTERVAL = 8 #Configurable frame interval for YOLO detection, currently set to process every 8th frame
 
 '''
-did try except in the repo layer so when there is exception it propagates to service
-still thinking about how to handle the exception (retry logic, how client knows if the upload failed, etc)
-#TODO:
-    - Test object Upload Repo
-    - Test url update Repo
-    - Integrate YOLO model to
-    - add association logic for ticket violation detection
-    - add logic for OCR model
+
+#TODO: as of Sept. 23, 2026
+    - Create logic for the OCR model using Paddlepaddle in def perform_ocr_on_video()
+    - Create pre processing logic for bounding box of plate number so OCR can read it more accurately
+    - Will need to pass auth token of logged in officer to use it as FK in ticket table
+    - Create a logic for inserting all tracked plates at once (push all tracked plates once so program does not have to insert back and forth)
 '''
 
 
-async def yolo_detection(content: bytes, file_name: str, model, location: str):
+async def yolo_detection(content: bytes, file_name: str, model, location: str, officer: UUID):
     
     logging.info(f"Processing file: {file_name}")
     
@@ -59,7 +59,7 @@ async def yolo_detection(content: bytes, file_name: str, model, location: str):
                         model,
                     )
 
-                await associate_ticket_with_violation(last_results, model, video_path)
+                await associate_ticket_with_violation(last_results, model, video_path, location, officer)
 
                 out.write(frame)
 
@@ -74,13 +74,16 @@ async def yolo_detection(content: bytes, file_name: str, model, location: str):
                 annotated_bytes = f.read()
 
             save_to_bucket(annotated_bytes, file_name)
+
+            if os.path.exists(output_path):
+                os.remove(output_path)
             
 
 
     
 
 
-async def associate_ticket_with_violation(results, model, video_path: str):
+async def associate_ticket_with_violation(results, model, video_path: str, location: str, officer: UUID):
     result = results[0]
     tracked_plates = set()  # To keep track of already processed plate numbers
 
@@ -121,10 +124,6 @@ async def perform_ocr_on_video(plate_box):
     pass
 
 
-async def save_violation_to_supabase(ticket_id: str, violation_type: str, plate_number: str):
-    # Implement the logic to save the violation details to the database
-    # Just thought about it but there should be two seperate logic for saving to DB one for creating a row and one for updating the row with the violation details
-    pass
 
 def create_video_writer(output_path: str, cap: cv2.VideoCapture):
     '''
