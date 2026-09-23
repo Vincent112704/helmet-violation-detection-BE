@@ -15,9 +15,16 @@ alembic = "^1.18.5"
 pydantic-settings = "^2.14.2"
 supabase = "^2.31.0"
 asyncpg = "^0.31.0"
-torch = "^2.5.0"
-torchvision = "^0.20.0"
+torch = { version = "^2.5.0", source = "pytorch-cpu" }
+torchvision = { version = "^0.20.0", source = "pytorch-cpu" }
 ultralytics = "^8.4.149"
+
+
+[[tool.poetry.source]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
+
 
 [build-system]
 requires = ["poetry-core"]
