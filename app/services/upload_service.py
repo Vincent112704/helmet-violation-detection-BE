@@ -1,4 +1,4 @@
-from app.repository.upload_repository import save_to_bucket, save_to_database, create_ticket
+from app.repository.upload_repository import save_to_bucket, save_to_database, create_ticket, get_storage_url
 import cv2
 import tempfile
 import logging
@@ -24,7 +24,8 @@ still thinking about how to handle the exception (retry logic, how client knows 
 async def yolo_detection(content: bytes, file_name: str, model, location: str):
     
     logging.info(f"Processing file: {file_name}")
-    video_path = save_to_bucket(content, file_name)
+    
+    video_path = get_storage_url(file_name) # nothing has been saved yet url of video is pre made
 
     with tempfile.NamedTemporaryFile(suffix=".mp4") as temp_file:
         temp_file.write(content)
@@ -33,7 +34,7 @@ async def yolo_detection(content: bytes, file_name: str, model, location: str):
         cap = cv2.VideoCapture(temp_file.name)
 
         # Create output video
-        output_path = f"/app/{file_name}_detected.mp4"
+        output_path = f"/app/{file_name}_detected.mp4" # simply be used to read annotated video
         out = create_video_writer(output_path, cap)
 
         frame_counter = 0
@@ -68,6 +69,12 @@ async def yolo_detection(content: bytes, file_name: str, model, location: str):
             #should add logic here to save the annotated video to the bucket and update the url in the database
             cap.release()
             out.release()
+
+            with open(output_path, 'rb') as f:
+                annotated_bytes = f.read()
+
+            save_to_bucket(annotated_bytes, file_name)
+            
 
 
     

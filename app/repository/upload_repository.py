@@ -12,7 +12,7 @@ Strictly will only receive mp4 files. Any other file type will have to transform
 async def save_to_bucket(content: bytes, file_name: str) -> str:
     path = f"uploads/{file_name}"
     storage = supabase.storage.from_("videos")
-    url = storage.get_public_url(path)
+    url = get_storage_url(file_name)
 
     try:
         storage.upload(
@@ -31,7 +31,12 @@ async def save_to_bucket(content: bytes, file_name: str) -> str:
     
     return url
 
+def get_storage_url(file_name: str) -> str:
+    path = f"uploads/{file_name}"
+    storage = supabase.storage.from_("videos")
+    url = storage.get_public_url(path)
 
+    return url
 
 async def save_to_database(file_url: str, ticket_id: UUID) -> None:
     try:
