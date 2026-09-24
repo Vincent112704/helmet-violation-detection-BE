@@ -1,10 +1,12 @@
-from app.repository.upload_repository import save_to_bucket, create_ticket, get_storage_url
+from app.repository.upload_repository import save_to_bucket, create_tickets, get_storage_url
 import cv2
 import tempfile
 import logging
 from uuid import UUID
 import os
-
+from paddleocr import PaddleOCR
+import asyncio
+from ultralytics import YOLO
 logging.basicConfig(level=logging.INFO)
 
 
@@ -14,14 +16,12 @@ FRAME_INTERVAL = 8 #Configurable frame interval for YOLO detection, currently se
 '''
 
 #TODO: as of Sept. 23, 2026
-    - Create logic for the OCR model using Paddlepaddle in def perform_ocr_on_video()
-    - Create pre processing logic for bounding box of plate number so OCR can read it more accurately
     - Will need to pass auth token of logged in officer to use it as FK in ticket table
     - Create a logic for inserting all tracked plates at once (push all tracked plates once so program does not have to insert back and forth)
 '''
 
 
-async def yolo_detection(content: bytes, file_name: str, model, location: str, officer: UUID, ocr_model):
+async def yolo_detection(content: bytes, file_name: str, model: YOLO, location: str, officer: UUID, ocr_model: PaddleOCR):
     
     logging.info(f"Processing file: {file_name}")
     
@@ -59,14 +59,14 @@ async def yolo_detection(content: bytes, file_name: str, model, location: str, o
                         model,
                     )
 
-                await associate_ticket_with_violation(last_results, model, video_path, location, officer)
+                await associate_ticket_with_violation(last_results, model, video_path, location, officer, ocr_model)
 
                 out.write(frame)
 
                 frame_counter += 1
 
         finally:
-            #should add logic here to save the annotated video to the bucket and update the url in the database
+            
             cap.release()
             out.release()
 
@@ -80,12 +80,10 @@ async def yolo_detection(content: bytes, file_name: str, model, location: str, o
             
 
 
-    
-
-
-async def associate_ticket_with_violation(results, model, video_path: str, location: str, officer: UUID):
+async def associate_ticket_with_violation(results, model: YOLO, video_path: str, location: str, officer: UUID, ocr_model: PaddleOCR):
     result = results[0]
     tracked_plates = set()  # To keep track of already processed plate numbers
+    violations = []
 
     helmets = get_boxes_by_class(result, model, "Helmet")
     persons = get_boxes_by_class(result, model, "Person")
@@ -107,21 +105,95 @@ async def associate_ticket_with_violation(results, model, video_path: str, locat
             if plate_number is None:
                 logging.info("No plate number detected for the motorcycle.")
             else:
-                # call ocr model and pass plate number bounding box to extract the plate number
-                # plate_number_text = await perform_ocr_on_video(plate_number, result.orig_img)
-                # if plate_number_text in tracked_plates:
-                #     continue  # Skip if this plate number has already been processed
-                # tracked_plates.add(plate_number)
-                #Create violation record with plate number as plate_number_text
-                pass
+                
+                plate_number_text = await perform_ocr_on_video(plate_number, result.orig_img, ocr_model)
+                if plate_number_text in tracked_plates:
+                    continue 
+
+                tracked_plates.add(plate_number)
+                violations.append({
+                    "officer": officer,
+                    "plate_number": plate_number_text,
+                    "location": location,
+                    "video_url": video_path,
+                })
+
+    if not violations:
+        logging.info("No violations detected in this frame/video.")
+        return []
+
+    created_tickets = await create_tickets(violations)
+    logging.info(f"Created {len(created_tickets)} ticket(s) for detected violations.")
+
+    return created_tickets
+                
+                
             
-    #after person loop ends insert all plate number in set
+    
 
          
-            
-async def perform_ocr_on_video(plate_box, frame):
-    # Implement the logic to perform OCR on the video and extract plate number when yolo association logic detects a violation
-    pass
+async def perform_ocr_on_video(plate_box, frame, ocr_model: PaddleOCR):
+    if frame is None or plate_box is None:
+        return None
+
+    try:
+        x1, y1, x2, y2 = map(int, plate_box[:4])
+    except (TypeError, ValueError):
+        x1, y1, x2, y2 = map(int, plate_box.xyxy[0])
+
+    h, w = frame.shape[:2]
+    x1, y1 = max(0, x1), max(0, y1)
+    x2, y2 = min(w, x2), min(h, y2)
+    if x2 <= x1 or y2 <= y1:
+        return None
+
+    margin = 5
+    plate_crop = frame[
+        max(0, y1 - margin):min(h, y2 + margin),
+        max(0, x1 - margin):min(w, x2 + margin),
+    ]
+    if plate_crop.size == 0:
+        return None
+
+    plate_crop = _preprocess_plate(plate_crop)
+
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, ocr_model.ocr, plate_crop, True)
+
+    return _extract_best_text(result)
+
+
+def _preprocess_plate(crop):
+    h, w = crop.shape[:2]
+    min_height = 64
+    if h < min_height:
+        scale = min_height / h
+        crop = cv2.resize(
+            crop, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_CUBIC
+        )
+    crop = cv2.fastNlMeansDenoisingColored(crop, None, 10, 10, 7, 21)
+    lab = cv2.cvtColor(crop, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    l = clahe.apply(l)
+    lab = cv2.merge((l, a, b))
+    return cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+
+
+def _extract_best_text(ocr_result, min_confidence=0.5):
+    if not ocr_result or ocr_result[0] is None:
+        return None
+    lines = []
+    for box, (text, confidence) in ocr_result[0]:
+        if confidence >= min_confidence and text.strip():
+            left_x = min(point[0] for point in box)
+            lines.append((left_x, text.strip()))
+    if not lines:
+        return None
+    lines.sort(key=lambda t: t[0])
+    plate_text = "".join(text for _, text in lines)
+    plate_text = "".join(c for c in plate_text.upper() if c.isalnum())
+    return plate_text or None
 
 
 

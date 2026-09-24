@@ -9,6 +9,17 @@ logging.basicConfig(level=logging.INFO)
 Strictly will only receive mp4 files. Any other file type will have to transform to mp4 before uploading to supabase bucket.
 '''
 
+from typing import TypedDict
+
+
+class TicketInput(TypedDict):
+    officer: UUID
+    plate_number: str
+    location: str
+    video_url: str
+
+    
+
 async def save_to_bucket(content: bytes, file_name: str) -> str:
     path = f"uploads/{file_name}"
     storage = supabase.storage.from_("videos")
@@ -58,27 +69,41 @@ def get_storage_url(file_name: str) -> str:
 
 
 
-async def create_ticket(officer: UUID, plate_number: str, location: str, video_url: str):
+async def create_tickets(tickets: list[TicketInput]):
     """
-    Insert a new ticket record into the `tickets` table.
-    Returns the created row on success, raises an exception on failure.
+    Insert one or more ticket records into the `tickets` table in a single
+    atomic operation — either all rows are inserted, or none are (a single
+    INSERT statement is one transaction in Postgres).
+
+    Args:
+        tickets: list of ticket dicts, each with officer, plate_number,
+                 location, and video_url.
+
+    Returns:
+        list of created rows on success.
+    Raises:
+        ValueError if `tickets` is empty.
+        RuntimeError on failure or if no data is returned.
     """
+    if not tickets:
+        raise ValueError("tickets must contain at least one entry")
+
+    rows = [
+        {
+            "officer": str(t["officer"]),
+            "plate_number": t["plate_number"],
+            "location": t["location"],
+            "url": t["video_url"],
+        }
+        for t in tickets
+    ]
+
     try:
-        response = (
-            supabase.table("ticket")
-            .insert({
-                "officer": str(officer),
-                "plate_number": plate_number,
-                "location": location,
-                "url": video_url,
-            })
-            .execute()
-        )
+        response = supabase.table("ticket").insert(rows).execute()
     except Exception as e:
-        # supabase-py raises APIError (or similar) on request failure
-        raise RuntimeError(f"Failed to create ticket: {e}") from e
+        raise RuntimeError(f"Failed to create ticket(s): {e}") from e
 
     if not response.data:
         raise RuntimeError("Ticket creation returned no data")
 
-    return response.data[0]
+    return response.data
