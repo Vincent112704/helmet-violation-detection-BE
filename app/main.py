@@ -38,10 +38,8 @@ app.add_middleware(
 
 
 
-# app.include_router(dashboard_router, prefix='/api/dashboard', dependencies=[Depends(get_user)])
-app.include_router(dashboard_router, prefix='/api/dashboard') #Removed auth for testing
-# app.include_router(table_router, prefix='/api/table', dependencies=[Depends(get_user)])
-app.include_router(table_router, prefix='/api/table') #Removed auth for testing
+app.include_router(dashboard_router, prefix='/api/dashboard', dependencies=[Depends(get_user)])
+app.include_router(table_router, prefix='/api/table', dependencies=[Depends(get_user)])
 app.include_router(upload_router, prefix='/api/upload')
 
 

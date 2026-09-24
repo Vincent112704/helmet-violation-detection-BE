@@ -10,12 +10,12 @@ router = APIRouter()
 
     
 @router.post('/')
-async def upload_file(request: Request, background_tasks: BackgroundTasks, video_file: UploadFile = File(...)):
+async def upload_file(request: Request, background_tasks: BackgroundTasks, video_file: UploadFile = File(...), user = Depends(get_user)):
     content = await video_file.read()
     form = await request.form()
     location = form.get('location', '')
     file_name = video_file.filename
-    officer = "Put auth token of logged in officer here"
+    officer = user.id
     yolo_model = request.app.state.model
     ocr_model = request.app.state.ocr_model
     try: 
