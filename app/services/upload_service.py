@@ -128,10 +128,6 @@ async def associate_ticket_with_violation(results, model: YOLO, video_path: str,
     return created_tickets
                 
                 
-            
-    
-
-         
 async def perform_ocr_on_video(plate_box, frame, ocr_model: PaddleOCR):
     if frame is None or plate_box is None:
         return None
@@ -158,7 +154,7 @@ async def perform_ocr_on_video(plate_box, frame, ocr_model: PaddleOCR):
     plate_crop = _preprocess_plate(plate_crop)
 
     loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, ocr_model.ocr, plate_crop, True)
+    result = await loop.run_in_executor(None, ocr_model.predict, plate_crop)
 
     return _extract_best_text(result)
 
@@ -180,19 +176,36 @@ def _preprocess_plate(crop):
     return cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
 
 
-def _extract_best_text(ocr_result, min_confidence=0.5):
-    if not ocr_result or ocr_result[0] is None:
+def _extract_best_text(result, min_confidence=0.5):
+    """
+    PaddleOCR 3.x `.predict()` returns a list of Result objects.
+    Each is dict-like with 'rec_texts', 'rec_scores', 'rec_polys'.
+    """
+    if not result:
         return None
+
+    res = result[0]
+
+    texts = res.get("rec_texts") or []
+    scores = res.get("rec_scores") or []
+    polys = res.get("rec_polys")
+
+    if not texts:
+        return None
+
     lines = []
-    for box, (text, confidence) in ocr_result[0]:
-        if confidence >= min_confidence and text.strip():
-            left_x = min(point[0] for point in box)
+    for i, (text, score) in enumerate(zip(texts, scores)):
+        if score >= min_confidence and text.strip():
+            left_x = float(polys[i][:, 0].min()) if polys is not None else i
             lines.append((left_x, text.strip()))
+
     if not lines:
         return None
+
     lines.sort(key=lambda t: t[0])
     plate_text = "".join(text for _, text in lines)
     plate_text = "".join(c for c in plate_text.upper() if c.isalnum())
+
     return plate_text or None
 
 

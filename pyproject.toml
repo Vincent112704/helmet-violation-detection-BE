@@ -19,11 +19,16 @@ torch = { version = "^2.5.0", source = "pytorch-cpu" }
 torchvision = { version = "^0.20.0", source = "pytorch-cpu" }
 ultralytics = "^8.4.149"
 paddleocr = "^3.7.0"
-
+paddlepaddle = { version = "3.2.0", source = "paddle-cpu" }
 
 [[tool.poetry.source]]
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
+
+[[tool.poetry.source]]
+name = "paddle-cpu"
+url = "https://www.paddlepaddle.org.cn/packages/stable/cpu/"
 priority = "explicit"
 
 

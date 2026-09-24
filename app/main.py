@@ -18,10 +18,11 @@ logging.basicConfig(level=logging.INFO)
 async def lifespan(app: FastAPI):
     app.state.model = YOLO("model/best.pt")
     app.state.ocr_model = PaddleOCR(
-        use_angle_cls=True,
+        use_doc_orientation_classify=False,  # skip - plates aren't rotated documents
+        use_doc_unwarping=False,             # skip - no page warping to correct
+        use_textline_orientation=True,       # keep - plates can be tilted/angled
         lang="en",
-        show_log=False,
-        use_gpu=False,
+        # device="gpu:0",  # uncomment to force GPU; omitted = auto-detect (GPU if available, else CPU)
     )
     logging.info("Model loaded successfully.")
     yield
