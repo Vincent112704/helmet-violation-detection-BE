@@ -7,6 +7,7 @@ from app.repository.db import supabase
 from app.dependencies.auth import get_user
 from ultralytics import YOLO
 from fastapi.middleware.cors import CORSMiddleware
+from paddleocr import PaddleOCR
 
 
 import logging
@@ -15,8 +16,13 @@ logging.basicConfig(level=logging.INFO)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     app.state.model = YOLO("model/best.pt")
+    app.state.ocr_model = PaddleOCR(
+        use_angle_cls=True,
+        lang="en",
+        show_log=False,
+        use_gpu=False,
+    )
     logging.info("Model loaded successfully.")
     yield
 
@@ -24,7 +30,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="FastAPI Boilerplate", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Replace with your frontend domain or ["*"] for dev
+    allow_origins=["http://localhost:3000"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

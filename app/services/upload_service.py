@@ -21,7 +21,7 @@ FRAME_INTERVAL = 8 #Configurable frame interval for YOLO detection, currently se
 '''
 
 
-async def yolo_detection(content: bytes, file_name: str, model, location: str, officer: UUID):
+async def yolo_detection(content: bytes, file_name: str, model, location: str, officer: UUID, ocr_model):
     
     logging.info(f"Processing file: {file_name}")
     
@@ -108,7 +108,7 @@ async def associate_ticket_with_violation(results, model, video_path: str, locat
                 logging.info("No plate number detected for the motorcycle.")
             else:
                 # call ocr model and pass plate number bounding box to extract the plate number
-                # plate_number_text = await perform_ocr_on_video(plate_number)
+                # plate_number_text = await perform_ocr_on_video(plate_number, result.orig_img)
                 # if plate_number_text in tracked_plates:
                 #     continue  # Skip if this plate number has already been processed
                 # tracked_plates.add(plate_number)
@@ -119,7 +119,7 @@ async def associate_ticket_with_violation(results, model, video_path: str, locat
 
          
             
-async def perform_ocr_on_video(plate_box):
+async def perform_ocr_on_video(plate_box, frame):
     # Implement the logic to perform OCR on the video and extract plate number when yolo association logic detects a violation
     pass
 

@@ -18,6 +18,7 @@ asyncpg = "^0.31.0"
 torch = { version = "^2.5.0", source = "pytorch-cpu" }
 torchvision = { version = "^0.20.0", source = "pytorch-cpu" }
 ultralytics = "^8.4.149"
+paddleocr = "^3.7.0"
 
 
 [[tool.poetry.source]]
