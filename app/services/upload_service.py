@@ -8,11 +8,15 @@ from paddleocr import PaddleOCR
 import asyncio
 from ultralytics import YOLO
 logging.basicConfig(level=logging.INFO)
+import time
 
 
 
-FRAME_INTERVAL = 8 #Configurable frame interval for YOLO detection, currently set to process every 8th frame
+FRAME_INTERVAL = 5 #Configurable frame interval for YOLO detection, currently set to process every 8th frame
 
+TRACKED_PLATES = set()
+VIOLATIONS = []
+DEBUG_CROPS_DIR = "/tmp/plate_debug"
 '''
 
 #TODO: as of Sept. 23, 2026
@@ -73,7 +77,10 @@ async def yolo_detection(content: bytes, file_name: str, model: YOLO, location: 
             with open(output_path, 'rb') as f:
                 annotated_bytes = f.read()
 
-            save_to_bucket(annotated_bytes, file_name)
+            await save_to_bucket(annotated_bytes, file_name)
+            created_tickets = await create_tickets(VIOLATIONS)
+
+            logging.info(f"Created {len(created_tickets)} ticket(s) for detected violations.")
 
             if os.path.exists(output_path):
                 os.remove(output_path)
@@ -82,8 +89,7 @@ async def yolo_detection(content: bytes, file_name: str, model: YOLO, location: 
 
 async def associate_ticket_with_violation(results, model: YOLO, video_path: str, location: str, officer: UUID, ocr_model: PaddleOCR):
     result = results[0]
-    tracked_plates = set()  # To keep track of already processed plate numbers
-    violations = []
+    #TODO: Change OCR model
 
     helmets = get_boxes_by_class(result, model, "Helmet")
     persons = get_boxes_by_class(result, model, "Person")
@@ -107,25 +113,20 @@ async def associate_ticket_with_violation(results, model: YOLO, video_path: str,
             else:
                 
                 plate_number_text = await perform_ocr_on_video(plate_number, result.orig_img, ocr_model)
-                if plate_number_text in tracked_plates:
+                if plate_number_text is None or plate_number_text in TRACKED_PLATES:
                     continue 
-
-                tracked_plates.add(plate_number)
-                violations.append({
+            
+                TRACKED_PLATES.add(plate_number_text)
+                VIOLATIONS.append({
                     "officer": officer,
                     "plate_number": plate_number_text,
                     "location": location,
                     "video_url": video_path,
                 })
+                
 
-    if not violations:
-        logging.info("No violations detected in this frame/video.")
-        return []
 
-    created_tickets = await create_tickets(violations)
-    logging.info(f"Created {len(created_tickets)} ticket(s) for detected violations.")
-
-    return created_tickets
+    
                 
                 
 async def perform_ocr_on_video(plate_box, frame, ocr_model: PaddleOCR):
@@ -151,12 +152,28 @@ async def perform_ocr_on_video(plate_box, frame, ocr_model: PaddleOCR):
     if plate_crop.size == 0:
         return None
 
+    
+    os.makedirs(DEBUG_CROPS_DIR, exist_ok=True)
+    ts = int(time.time() * 1000)
+    cv2.imwrite(f"{DEBUG_CROPS_DIR}/{ts}_raw.jpg", plate_crop)
+
+
     plate_crop = _preprocess_plate(plate_crop)
+
+    
+    cv2.imwrite(f"{DEBUG_CROPS_DIR}/{ts}_processed.jpg", plate_crop)
+
 
     loop = asyncio.get_event_loop()
     result = await loop.run_in_executor(None, ocr_model.predict, plate_crop)
 
-    return _extract_best_text(result)
+    text = _extract_best_text(result)
+
+    # --- DEBUG: log the result alongside the image filenames ---
+    
+    logging.info(f"[DEBUG] {ts}_raw.jpg / {ts}_processed.jpg -> OCR result: {text}")
+
+    return text
 
 
 def _preprocess_plate(crop):
@@ -176,7 +193,7 @@ def _preprocess_plate(crop):
     return cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
 
 
-def _extract_best_text(result, min_confidence=0.5):
+def _extract_best_text(result, min_confidence=0.3):
     """
     PaddleOCR 3.x `.predict()` returns a list of Result objects.
     Each is dict-like with 'rec_texts', 'rec_scores', 'rec_polys'.

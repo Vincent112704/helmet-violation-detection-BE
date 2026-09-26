@@ -14,5 +14,7 @@ async def get_user(
 
     if response.user is None:
         raise HTTPException(status_code=401, detail="Invalid token")
+    
+
 
     return response.user
