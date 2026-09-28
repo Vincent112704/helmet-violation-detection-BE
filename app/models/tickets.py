@@ -1,7 +1,7 @@
 from datetime import datetime
 from app.models.enum import TicketStatus
 from uuid import UUID
-
+from typing import Optional
 from pydantic import BaseModel
 
 
@@ -19,3 +19,9 @@ class Ticket(BaseModel):
 
 class UpdateTicketStatusRequest(BaseModel):
     status: TicketStatus
+
+
+class ViolationUpdate(BaseModel):
+    location: Optional[str] = None
+    status: Optional[TicketStatus] = None
+    plate_number: Optional[str] = None
