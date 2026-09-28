@@ -136,7 +136,10 @@ async def yolo_detection(content: bytes, file_name: str, model: YOLO, location: 
             if VIOLATIONS: 
                 created_tickets = await create_tickets(VIOLATIONS)
 
-            logging.info(f"Created {len(created_tickets)} ticket(s) for detected violations.")
+            if created_tickets: 
+                logging.info(f"Created {len(created_tickets)} ticket(s) for detected violations.")
+            else:
+                logging.info(f"No ticket has been created")
 
             if os.path.exists(output_path):
                 os.remove(output_path)
@@ -169,6 +172,7 @@ async def associate_ticket_with_violation(results, model: YOLO, video_path: str,
             else:
                 
                 plate_number_text = normalize_plate(await perform_ocr_on_video(plate_number, result.orig_img, ocr_model))
+                logging.info("Plate number text accepted by filter: ", plate_number_text)
                 if plate_number_text is None or plate_number_text in TRACKED_PLATES:
                     continue 
             
@@ -224,7 +228,7 @@ async def perform_ocr_on_video(plate_box, frame, ocr_model: PaddleOCR):
     # --- DEBUG: log the result alongside the image filenames ---
     
     # logging.info(f"[DEBUG] {ts}_raw.jpg / {ts}_processed.jpg -> OCR result: {text}")
-
+    logging.info("Text extracted by OCR: ", text)
     return text
 
 
