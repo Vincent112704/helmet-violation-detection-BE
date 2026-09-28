@@ -8,8 +8,47 @@ from paddleocr import PaddleOCR
 import asyncio
 from ultralytics import YOLO
 logging.basicConfig(level=logging.INFO)
-import time
+# import time
+import re
 
+_CURRENT = [
+    r"\d{3}[A-Z]{3}",       # 123ABC
+    r"[A-Z]\d{3}[A-Z]{2}",  # A123BC
+    r"[A-Z]{2}\d{3}[A-Z]",  # AB123C
+    r"\d[A-Z]{3}\d{2}",     # 1ABC23
+    r"[A-Z]\d{4}[A-Z]",     # A1234C
+    r"[A-Z]\d[A-Z]\d{3}",   # A1C234
+    r"[A-Z]\d{2}[A-Z]\d{2}",# A12C34
+]
+
+# 1981 series (2000-2014) and NCR replacement plates
+_LEGACY = [
+    r"[A-Z]{2}\d{4}",       # AB1234
+    r"\d{4}[A-Z]{2}",       # 1234AB
+]
+
+# Unverified: reported by one source only, remove if it causes false positives
+_OPTIONAL = [
+    r"[A-Z]{2}\d{5}",       # AB12345
+]
+
+MOTORCYCLE_PLATE_RE = re.compile(
+    r"^(?:" + "|".join(_CURRENT + _LEGACY + _OPTIONAL) + r")$"
+)
+
+MIN_PLATE_LEN, MAX_PLATE_LEN = 5, 7
+MAX_CORRECTIONS = 2  # don't "repair" a read that needs more than this
+
+# Position masks for each known format: L = letter, D = digit
+PLATE_MASKS = [
+    "DDDLLL", "LDDDLL", "LLDDDL", "DLLLDD", "LDDDDL", "LDLDDD", "LDDLDD",  # 2014+
+    "LLDDDD", "DDDDLL",                                                    # 1981 series
+    "LLDDDDD",                                                             # optional
+]
+
+# Common OCR look-alikes
+TO_DIGIT  = {"O": "0", "Q": "0", "D": "0", "I": "1", "L": "1", "Z": "2", "S": "5", "G": "6", "B": "8"}
+TO_LETTER = {"0": "O", "1": "I", "2": "Z", "5": "S", "6": "G", "8": "B"}
 
 
 FRAME_INTERVAL = 5 #Configurable frame interval for YOLO detection, currently set to process every 8th frame
@@ -50,15 +89,27 @@ async def yolo_detection(content: bytes, file_name: str, model: YOLO, location: 
 
                 if not success:
                     break
+                '''
+                Remove frame interval for now
+                '''
+                # if frame_counter % FRAME_INTERVAL == 0:
+                #     results = model(frame)
+                #     last_results = results
 
-                if frame_counter % FRAME_INTERVAL == 0:
-                    results = model(frame)
-                    last_results = results
+                # # Draw the latest detections
+                # if last_results is not None:
+                #     frame = draw_detections(
+                #         frame.copy(),
+                #         last_results,
+                #         model,
+                #     )
 
-                # Draw the latest detections
+                results = model(frame)
+                last_results = results
+                
                 if last_results is not None:
                     frame = draw_detections(
-                        frame,
+                        frame.copy(),
                         last_results,
                         model,
                     )
@@ -78,7 +129,8 @@ async def yolo_detection(content: bytes, file_name: str, model: YOLO, location: 
                 annotated_bytes = f.read()
 
             await save_to_bucket(annotated_bytes, file_name)
-            created_tickets = await create_tickets(VIOLATIONS)
+            if VIOLATIONS: 
+                created_tickets = await create_tickets(VIOLATIONS)
 
             logging.info(f"Created {len(created_tickets)} ticket(s) for detected violations.")
 
@@ -112,7 +164,7 @@ async def associate_ticket_with_violation(results, model: YOLO, video_path: str,
                 logging.info("No plate number detected for the motorcycle.")
             else:
                 
-                plate_number_text = await perform_ocr_on_video(plate_number, result.orig_img, ocr_model)
+                plate_number_text = normalize_plate(await perform_ocr_on_video(plate_number, result.orig_img, ocr_model))
                 if plate_number_text is None or plate_number_text in TRACKED_PLATES:
                     continue 
             
@@ -124,11 +176,7 @@ async def associate_ticket_with_violation(results, model: YOLO, video_path: str,
                     "video_url": video_path,
                 })
                 
-
-
-    
-                
-                
+     
 async def perform_ocr_on_video(plate_box, frame, ocr_model: PaddleOCR):
     if frame is None or plate_box is None:
         return None
@@ -153,15 +201,15 @@ async def perform_ocr_on_video(plate_box, frame, ocr_model: PaddleOCR):
         return None
 
     
-    os.makedirs(DEBUG_CROPS_DIR, exist_ok=True)
-    ts = int(time.time() * 1000)
-    cv2.imwrite(f"{DEBUG_CROPS_DIR}/{ts}_raw.jpg", plate_crop)
+    # os.makedirs(DEBUG_CROPS_DIR, exist_ok=True)
+    # ts = int(time.time() * 1000)
+    # cv2.imwrite(f"{DEBUG_CROPS_DIR}/{ts}_raw.jpg", plate_crop)
 
 
     plate_crop = _preprocess_plate(plate_crop)
 
     
-    cv2.imwrite(f"{DEBUG_CROPS_DIR}/{ts}_processed.jpg", plate_crop)
+    # cv2.imwrite(f"{DEBUG_CROPS_DIR}/{ts}_processed.jpg", plate_crop)
 
 
     loop = asyncio.get_event_loop()
@@ -171,7 +219,7 @@ async def perform_ocr_on_video(plate_box, frame, ocr_model: PaddleOCR):
 
     # --- DEBUG: log the result alongside the image filenames ---
     
-    logging.info(f"[DEBUG] {ts}_raw.jpg / {ts}_processed.jpg -> OCR result: {text}")
+    # logging.info(f"[DEBUG] {ts}_raw.jpg / {ts}_processed.jpg -> OCR result: {text}")
 
     return text
 
@@ -407,3 +455,47 @@ def find_associated_plate(motorcycle_box, plates):
             return plate_box
 
     return None
+
+def _fix_with_mask(text: str, mask: str):
+    """Returns (corrected_text, num_corrections) or None if it can't fit the mask."""
+    if len(text) != len(mask):
+        return None
+    out, fixes = [], 0
+    for ch, m in zip(text, mask):
+        if m == "D":
+            if ch.isdigit():
+                out.append(ch)
+            elif ch in TO_DIGIT:
+                out.append(TO_DIGIT[ch]); fixes += 1
+            else:
+                return None
+        else:  # "L"
+            if ch.isalpha():
+                out.append(ch)
+            elif ch in TO_LETTER:
+                out.append(TO_LETTER[ch]); fixes += 1
+            else:
+                return None
+    return "".join(out), fixes
+
+def normalize_plate(text: str | None) -> str | None:
+    if not text:
+        return None
+
+    text = "".join(c for c in text.upper() if c.isalnum())
+    if not (MIN_PLATE_LEN <= len(text) <= MAX_PLATE_LEN):
+        return None  # only hard rejection: implausible length
+
+    # 1. Already a valid format
+    if MOTORCYCLE_PLATE_RE.match(text):
+        return text
+
+    # 2. Try to repair look-alikes using the format with the fewest fixes
+    candidates = [r for m in PLATE_MASKS if (r := _fix_with_mask(text, m))]
+    if candidates:
+        best_text, fixes = min(candidates, key=lambda r: r[1])
+        if fixes <= MAX_CORRECTIONS:
+            return best_text
+
+    # 3. Couldn't fix it, but the length is plausible, so accept as read
+    return text
