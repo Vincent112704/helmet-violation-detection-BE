@@ -29,7 +29,8 @@ def delete_ticket_data(ticket_id: str):
             .eq("ticket_id", ticket_id)
             .execute()
         )
-        return {"message": "success"}
+
+        return response.data
 
     except Exception as e:
         logging.error(f"There was an error deleting the ticket")
@@ -44,7 +45,8 @@ def patch_ticket_data(ticket_id: str, violation: dict):
             .execute()
         )
 
-        return {"message": "success"}
+        return response.data
+
     
     except Exception as e:
         logging.error("There was an error updating ticket table")
