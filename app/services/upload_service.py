@@ -125,7 +125,11 @@ async def yolo_detection(content: bytes, file_name: str, model: YOLO, location: 
             cap.release()
             out.release()
 
-            with open(output_path, 'rb') as f:
+            web_path = output_path.replace(".mp4", "_web.mp4")
+            await transcode_for_web(output_path, web_path)
+
+
+            with open(web_path, 'rb') as f:
                 annotated_bytes = f.read()
 
             await save_to_bucket(annotated_bytes, file_name)
@@ -499,3 +503,18 @@ def normalize_plate(text: str | None) -> str | None:
 
     # 3. Couldn't fix it, but the length is plausible, so accept as read
     return text
+
+
+async def transcode_for_web(src: str, dst: str) -> None:
+    proc = await asyncio.create_subprocess_exec(
+        "ffmpeg", "-y", "-i", src,
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
+        "-pix_fmt", "yuv420p",       # required for browser playback
+        "-movflags", "+faststart",   # lets playback start before the full download
+        "-an", dst,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, err = await proc.communicate()
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffmpeg failed: {err.decode()[-500:]}")
