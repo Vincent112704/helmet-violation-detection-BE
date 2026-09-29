@@ -172,7 +172,7 @@ async def associate_ticket_with_violation(results, model: YOLO, video_path: str,
             else:
                 
                 plate_number_text = normalize_plate(await perform_ocr_on_video(plate_number, result.orig_img, ocr_model))
-                logging.info("Plate number text accepted by filter: ", plate_number_text)
+                logging.info("Plate number text accepted by filter: %s", plate_number_text)
                 if plate_number_text is None or plate_number_text in TRACKED_PLATES:
                     continue 
             
@@ -228,7 +228,7 @@ async def perform_ocr_on_video(plate_box, frame, ocr_model: PaddleOCR):
     # --- DEBUG: log the result alongside the image filenames ---
     
     # logging.info(f"[DEBUG] {ts}_raw.jpg / {ts}_processed.jpg -> OCR result: {text}")
-    logging.info("Text extracted by OCR: ", text)
+    logging.info("Text extracted by OCR: %s", text)
     return text
 
 
